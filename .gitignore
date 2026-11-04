@@ -1,0 +1,32 @@
+# ข้อมูลเรดาร์ / สถานีจริง และโมเดลที่เทรนแล้ว — ห้ามขึ้น repo สาธารณะ
+/data/
+/pipeline/data/
+/models/
+*.h5
+*.hdf5
+*.hdf
+*.nc
+*.npz
+*.npy
+*.zarr
+*.pt
+*.pth
+*.ckpt
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+.venv/
+.ipynb_checkpoints/
+mlruns/
+runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
