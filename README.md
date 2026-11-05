@@ -41,12 +41,23 @@ stack อิงตาม project tent (SvelteKit adapter-node + FastAPI + nginx 
 ทั้งสามส่วนคุยกันผ่านไฟล์ JSON ชุดเดียว ถ้าเปลี่ยน shape ต้องแก้สามที่พร้อมกันและเพิ่ม `schema_version`:
 `pipeline/laefon_pipeline/mock/generate.py` → `backend/apiapp/core/contract.py` → `web/src/lib/features/forecast/domain/types.ts`
 
+## พัฒนาเว็บ (แบบ tent: หลังบ้านใน Docker, เว็บรันบนเครื่อง)
+
+```bash
+cp .env.example .env                                                        # ครั้งแรกครั้งเดียว
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api    # pipeline + api ที่ 127.0.0.1:9001
+cd web && pnpm install && pnpm dev                                          # http://localhost:5173
+```
+
+ใน `docker-compose.yml` หลัก มีแค่ nginx ที่เปิด port ออกนอก Docker ส่วน api เปิดที่ `127.0.0.1:9001`
+เฉพาะตอนใช้ `docker-compose.dev.yml` เพื่อให้ `pnpm dev` บนเครื่องเรียกได้ ส่วน pipeline ไม่มี port เพราะไม่ใช่ server
+
 ## พัฒนาแยกส่วน (ไม่ใช้ docker)
 
 ```bash
 cd pipeline && uv sync && uv run python -m laefon_pipeline.mock --out ../data/generated
-cd backend  && uv sync && DATA_DIR=../data/generated uv run fastapi dev apiapp/main.py --port 9000
-cd web      && pnpm install && pnpm dev          # API_URL ค่าเริ่มต้น http://localhost:9000
+cd backend  && uv sync && DATA_DIR=../data/generated uv run fastapi dev apiapp/main.py --port 9001
+cd web      && pnpm install && pnpm dev          # API_URL ค่าเริ่มต้น http://localhost:9001
 ```
 
 ตรวจก่อน commit:

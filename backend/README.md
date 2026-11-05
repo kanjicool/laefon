@@ -4,7 +4,7 @@
 
 ```bash
 uv sync
-DATA_DIR=../data/generated uv run fastapi dev apiapp/main.py --port 9000   # http://localhost:9000/docs
+DATA_DIR=../data/generated uv run fastapi dev apiapp/main.py --port 9001   # http://localhost:9001/docs (9001 ตรงกับค่าเริ่มต้นของเว็บ)
 uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
