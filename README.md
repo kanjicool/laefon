@@ -10,13 +10,14 @@
 ## รันทั้งระบบ (Docker)
 
 ```bash
-docker compose up -d --build        # เปิด http://localhost:8080
+cp .env.example .env                # ตั้ง NGINX_PORT (ค่าเริ่มต้น 80 แบบ tent)
+docker compose up -d --build        # เปิด http://localhost:<NGINX_PORT>
 docker compose run --rm pipeline    # สร้างข้อมูลจำลองชุดใหม่
 docker compose down
 ```
 
 dev แบบ hot reload: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`
-(เว็บ http://localhost:5173 · API docs http://localhost:9000/docs)
+(เว็บ http://localhost:5173 · API docs http://localhost:9001/docs — ใช้ 9001 เพื่อไม่ชนกับ tent)
 
 ## โครงสร้าง
 

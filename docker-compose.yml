@@ -1,5 +1,5 @@
 # แลฝน ทั้งระบบ: pipeline (สร้างข้อมูล) → api (FastAPI) → web (SvelteKit) → nginx
-#   docker compose up -d --build     แล้วเปิด http://localhost:8080
+#   cp .env.example .env && docker compose up -d --build     แล้วเปิด http://localhost:${NGINX_PORT}
 # รันใหม่เพื่อสร้างข้อมูลจำลองชุดใหม่:  docker compose run --rm pipeline
 
 name: laefon
@@ -44,8 +44,9 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    # แบบเดียวกับ tent: เปิดเฉพาะเครื่องตัวเอง port 80 · เครื่อง dev ที่ 80 ไม่ว่างให้ตั้ง NGINX_PORT ใน .env
     ports:
-      - "${LAEFON_PORT:-8080}:80"
+      - "${NGINX_HOST:-127.0.0.1}:${NGINX_PORT:-80}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped

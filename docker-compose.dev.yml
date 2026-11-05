@@ -1,6 +1,6 @@
 # dev: hot reload ทั้ง web และ api
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-#   เว็บ http://localhost:5173 · API docs http://localhost:9000/docs
+#   เว็บ http://localhost:5173 · API docs http://localhost:9001/docs
 
 services:
   api:
@@ -9,8 +9,9 @@ services:
     command: ["fastapi", "dev", "apiapp/main.py", "--host", "0.0.0.0", "--port", "9000"]
     volumes:
       - ./backend/apiapp:/app/apiapp
+    # 9001 เพื่อไม่ชนกับ tent-fastapi ที่ใช้ 9000
     ports:
-      - "9000:9000"
+      - "127.0.0.1:${API_PORT:-9001}:9000"
 
   web:
     build:
@@ -21,7 +22,7 @@ services:
       - ./web/src:/app/src
       - ./web/static:/app/static
     ports:
-      - "5173:5173"
+      - "127.0.0.1:${WEB_DEV_PORT:-5173}:5173"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/about').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
