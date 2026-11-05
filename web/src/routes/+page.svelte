@@ -1,10 +1,20 @@
-<main class="mx-auto flex min-h-svh max-w-2xl flex-col justify-center gap-4 px-4 py-12">
-	<p class="text-sm font-medium text-muted-foreground">laefon · อยู่ระหว่างพัฒนา</p>
-	<h1 class="text-4xl font-bold">แลฝน</h1>
-	<p class="text-lg text-muted-foreground">
-		ดูโอกาสฝนตกล่วงหน้า 2 ชั่วโมง รายตำบล จังหวัดสงขลา จากภาพเรดาร์ตรวจอากาศ
-	</p>
-	<p class="rounded-md border bg-muted px-4 py-3 text-sm">
-		หน้านี้ยังไม่ใช่คำพยากรณ์จริง ข้อมูลทั้งหมดในระหว่างพัฒนาเป็นข้อมูลจำลอง
-	</p>
-</main>
+<script lang="ts">
+	import Notice from '$lib/components/layout/Notice.svelte';
+	import ForecastExplorer from '$lib/features/explorer/ui/ForecastExplorer.svelte';
+	import { hhmm, minutesSince } from '$lib/utils/time';
+
+	let { data } = $props();
+
+	const stale = $derived(minutesSince(data.forecast.issued_at) > 30);
+</script>
+
+{#if data.forecast.is_mock}
+	<Notice><strong>ข้อมูลจำลองเพื่อสาธิต</strong> — ยังไม่ใช่คำพยากรณ์จริง</Notice>
+{/if}
+{#if stale}
+	<Notice>
+		<strong>ข้อมูลล่าสุดเมื่อ {hhmm(data.forecast.issued_at)}</strong> — ยังไม่ได้ภาพเรดาร์รอบใหม่ ค่าที่เห็นอาจไม่ตรงกับตอนนี้
+	</Notice>
+{/if}
+
+<ForecastExplorer forecast={data.forecast} radar={data.radar} mode="latest" />

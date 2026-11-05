@@ -1,0 +1,54 @@
+# แลฝน ทั้งระบบ: pipeline (สร้างข้อมูล) → api (FastAPI) → web (SvelteKit) → nginx
+#   docker compose up -d --build     แล้วเปิด http://localhost:8080
+# รันใหม่เพื่อสร้างข้อมูลจำลองชุดใหม่:  docker compose run --rm pipeline
+
+name: laefon
+
+services:
+  # ตอนนี้: สร้างข้อมูลจำลองครั้งเดียวแล้วจบ · ต่อไป: รันทุก 15 นาทีเมื่อได้ข้อมูลเรดาร์จริง
+  pipeline:
+    build: ./pipeline
+    image: laefon/pipeline:local
+    volumes:
+      - laefon-data:/data
+    restart: "no"
+
+  api:
+    build: ./backend
+    image: laefon/api:local
+    depends_on:
+      pipeline:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      DATA_DIR: /data
+      MOCK_LIVE_CLOCK: ${MOCK_LIVE_CLOCK:-true}
+    volumes:
+      - laefon-data:/data:ro
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.prod
+    image: laefon/web:local
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_URL: http://api:9000
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.29-alpine
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "${LAEFON_PORT:-8080}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  laefon-data:

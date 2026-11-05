@@ -24,7 +24,9 @@ export default ts.config(
 		},
 		rules: {
 			// https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
+			'no-undef': 'off',
+			// เหมือน tent: เว็บไม่ได้ deploy ใต้ base path จึงไม่บังคับ resolve() ทุกลิงก์
+			'svelte/no-navigation-without-resolve': 'off'
 		}
 	},
 	{

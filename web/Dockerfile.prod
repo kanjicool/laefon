@@ -1,0 +1,37 @@
+# SvelteKit adapter-node (แบบเดียวกับ tent/frontend/Dockerfile.prod)
+FROM node:24-slim AS base
+WORKDIR /app
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@12.16.1 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+FROM base AS builder
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM base AS prod-deps
+RUN pnpm install --frozen-lockfile --prod
+
+# ---
+
+FROM node:24-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production \
+	PORT=3000 \
+	# อยู่หลัง nginx: ใช้ header จาก proxy สร้าง URL จริง (ลิงก์แชร์ LINE ต้องถูก)
+	PROTOCOL_HEADER=x-forwarded-proto \
+	HOST_HEADER=x-forwarded-host
+
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json ./
+
+RUN chown -R node:node /app
+USER node
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+	CMD node -e "fetch('http://127.0.0.1:3000/about').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "build"]

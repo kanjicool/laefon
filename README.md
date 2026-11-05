@@ -1,45 +1,67 @@
 # แลฝน (laefon)
 
-ดูโอกาสฝนตกล่วงหน้า 2 ชั่วโมง รายตำบล จังหวัดสงขลา จากภาพเรดาร์ตรวจอากาศ
+ดูว่าฝนจะตกที่ตำบลของคุณกี่โมง ล่วงหน้า 2 ชั่วโมง จังหวัดสงขลา จากภาพเรดาร์ตรวจอากาศ
 
-> **สถานะ:** อยู่ระหว่างพัฒนา — เป็นโครงงานสหกิจศึกษา ไม่ใช่บริการพยากรณ์อากาศอย่างเป็นทางการ
-> ข้อมูลที่อยู่ใน repo นี้เป็นข้อมูลจำลองทั้งหมด ข้อมูลเรดาร์และข้อมูลสถานีจริงไม่ได้เผยแพร่ที่นี่
+> **สถานะ:** demo ระหว่างพัฒนา — โครงงานสหกิจศึกษา ไม่ใช่บริการพยากรณ์อากาศอย่างเป็นทางการ
+> ข้อมูลฝนทั้งหมดใน repo นี้เป็นข้อมูลจำลอง ข้อมูลเรดาร์และข้อมูลสถานีจริงไม่ได้เผยแพร่ที่นี่
 
 "แล" เป็นภาษาใต้ แปลว่า "ดู" — แลฝน คือ ดูฝน
 
-## ทำอะไร
+## รันทั้งระบบ (Docker)
 
-1. เทรนโมเดล Deep Learning (U-Net) ทำนายโอกาสฝนตกล่วงหน้า 15–120 นาทีจากภาพเรดาร์
-2. รวมผลเป็นรายตำบล แล้วแสดงบนเว็บที่ตอบได้ว่า "ฝนจะถึงตำบลนี้กี่โมง"
-3. วัดผลเทียบกับวิธีมาตรฐาน (persistence, optical flow) และค่าฝนจริงจากสถานีตรวจอากาศ
+```bash
+docker compose up -d --build        # เปิด http://localhost:8080
+docker compose run --rm pipeline    # สร้างข้อมูลจำลองชุดใหม่
+docker compose down
+```
+
+dev แบบ hot reload: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`
+(เว็บ http://localhost:5173 · API docs http://localhost:9000/docs)
 
 ## โครงสร้าง
 
 ```
-laefon/
-├── web/        เว็บ (SvelteKit, build เป็น static)
-└── pipeline/   (ยังไม่เริ่ม) Python: อ่านข้อมูลเรดาร์ → ทำนาย → เขียน forecast.json
+pipeline/ (Python 3.12) ──เขียนไฟล์──► volume laefon-data ◄──อ่าน── backend/ (FastAPI, Python 3.14)
+                                                                        ▲
+                       browser ──► nginx ──► web/ (SvelteKit, adapter-node) ──BFF /api/v1/*──┘
 ```
 
-pipeline กับเว็บคุยกันผ่านไฟล์ `forecast.json` ไฟล์เดียว shape ของไฟล์อยู่ที่
-[`web/src/lib/features/forecast/domain/types.ts`](web/src/lib/features/forecast/domain/types.ts)
-และมีตัวอย่างข้อมูลจำลองที่ [`web/static/data/mock/forecast.json`](web/static/data/mock/forecast.json)
+| ส่วน | อะไร | stack |
+|---|---|---|
+| `web/` | หน้าเว็บ + BFF | SvelteKit 2 (pin `~2.70.3`) · Svelte 5 · Tailwind 4 · shadcn-svelte · MapLibre GL 6 · Vitest 5 |
+| `backend/` | API อ่านผลทำนาย ภาพเรดาร์ ผลวัดโมเดล | FastAPI · Pydantic · uv |
+| `pipeline/` | ตอนนี้: mock generator · ต่อไป: อ่านเรดาร์ → ทำนาย | numpy · Pillow · shapely (ต่อไป wradlib / pysteps / PyTorch) |
+| `nginx/` | reverse proxy · `/public-api/` (GET อย่างเดียว) สำหรับระบบอื่น | nginx 1.29 |
 
-## Stack (web)
+stack อิงตาม project tent (SvelteKit adapter-node + FastAPI + nginx + docker compose) เพื่อให้ต่อยอดเป็นเว็บของศูนย์ฯ ได้
 
-- SvelteKit 2 + Svelte 5 + TypeScript — `adapter-static` build เป็นไฟล์ static ล้วน
-- Tailwind CSS 4 + shadcn-svelte (bits-ui) + Lucide icons
-- Leaflet สำหรับแผนที่
-- Prettier + ESLint + Vitest, ใช้ pnpm
+### Data contract
 
-## เริ่มพัฒนา
+ทั้งสามส่วนคุยกันผ่านไฟล์ JSON ชุดเดียว ถ้าเปลี่ยน shape ต้องแก้สามที่พร้อมกันและเพิ่ม `schema_version`:
+`pipeline/laefon_pipeline/mock/generate.py` → `backend/apiapp/core/contract.py` → `web/src/lib/features/forecast/domain/types.ts`
+
+## พัฒนาแยกส่วน (ไม่ใช้ docker)
 
 ```bash
-cd web
-pnpm install
-pnpm dev        # http://localhost:5173
-pnpm check      # type check
-pnpm lint       # prettier + eslint
-pnpm test       # vitest
-pnpm build      # ได้ไฟล์ static ใน web/build
+cd pipeline && uv sync && uv run python -m laefon_pipeline.mock --out ../data/generated
+cd backend  && uv sync && DATA_DIR=../data/generated uv run fastapi dev apiapp/main.py --port 9000
+cd web      && pnpm install && pnpm dev          # API_URL ค่าเริ่มต้น http://localhost:9000
 ```
+
+ตรวจก่อน commit:
+
+```bash
+cd web && pnpm check && pnpm lint && pnpm test
+cd backend && uv run ruff check . && uv run pytest
+cd pipeline && uv run ruff check . && uv run pytest
+```
+
+## Claude Code skills
+
+`.claude/skills/` มี skill สำหรับ dev โปรเจคนี้: `laefon-design-system`, `project-structure-architecture`, `testing-bestpractices`
+(ดัดแปลงจาก tent) และ `svelte-code-writer`, `svelte-core-bestpractices` (จาก sveltejs/ai-tools)
+
+## แหล่งข้อมูลและเครดิต
+
+- ขอบเขตตำบล: OCHA COD-AB Thailand (HDX) — CC BY-IGO · สร้างด้วย `pipeline/scripts/build_reference.py`
+- แผนที่ฐาน: OpenFreeMap · © OpenStreetMap contributors

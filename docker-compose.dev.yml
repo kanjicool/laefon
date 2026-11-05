@@ -1,0 +1,31 @@
+# dev: hot reload ทั้ง web และ api
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   เว็บ http://localhost:5173 · API docs http://localhost:9000/docs
+
+services:
+  api:
+    environment:
+      APP_ENV: dev
+    command: ["fastapi", "dev", "apiapp/main.py", "--host", "0.0.0.0", "--port", "9000"]
+    volumes:
+      - ./backend/apiapp:/app/apiapp
+    ports:
+      - "9000:9000"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: laefon/web:dev
+    volumes:
+      - ./web/src:/app/src
+      - ./web/static:/app/static
+    ports:
+      - "5173:5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/about').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      start_period: 30s
+
+  nginx:
+    profiles: ["prod"]
