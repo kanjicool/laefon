@@ -44,10 +44,14 @@ stack อิงตาม project tent (SvelteKit adapter-node + FastAPI + nginx 
 ## พัฒนาเว็บ (แบบ tent: หลังบ้านใน Docker, เว็บรันบนเครื่อง)
 
 ```bash
-cp .env.example .env                                                        # ครั้งแรกครั้งเดียว
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d api    # pipeline + api ที่ 127.0.0.1:9001
-cd web && pnpm install && pnpm dev                                          # http://localhost:5173
+cd web
+pnpm install          # ครั้งแรก
+pnpm dev:api          # เปิด pipeline + api ใน Docker ค้างไว้ (api ที่ 127.0.0.1:9001)
+pnpm dev              # http://localhost:5173 (เครื่องอื่นในวงเดียวกันเข้าทาง Network URL ได้)
+pnpm dev:api:down     # ปิดหลังบ้านเมื่อเลิกงาน
 ```
+
+อย่าใช้ `docker compose up -d` (แบบดู demo) คู่กับ `pnpm dev` เพราะแบบนั้นไม่เปิด port ของ api ให้เว็บบนเครื่องเรียก
 
 ใน `docker-compose.yml` หลัก มีแค่ nginx ที่เปิด port ออกนอก Docker ส่วน api เปิดที่ `127.0.0.1:9001`
 เฉพาะตอนใช้ `docker-compose.dev.yml` เพื่อให้ `pnpm dev` บนเครื่องเรียกได้ ส่วน pipeline ไม่มี port เพราะไม่ใช่ server

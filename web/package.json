@@ -5,6 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --host 0.0.0.0",
+		"dev:api": "docker compose -f ../docker-compose.yml -f ../docker-compose.dev.yml up -d api",
+		"dev:api:down": "docker compose -f ../docker-compose.yml -f ../docker-compose.dev.yml down",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
