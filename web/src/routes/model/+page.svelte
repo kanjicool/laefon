@@ -11,6 +11,7 @@
 		optical_flow: 'ดูทิศทางที่กลุ่มฝนเคลื่อน แล้วเลื่อนภาพล่าสุดไปข้างหน้า (pySTEPS)',
 		persistence: 'สมมติว่าฝนอยู่ที่เดิม ใช้ภาพล่าสุดเป็นคำทำนาย เป็นเส้นฐานขั้นต่ำ'
 	};
+	const hasUnet = $derived(data.metrics.models.some((m) => m.id === 'unet'));
 	const at60 = $derived(
 		data.metrics.models.map((m) => ({
 			...m,
@@ -23,7 +24,8 @@
 
 {#if data.metrics.is_mock}
 	<Notice
-		><strong>ตัวเลขจำลอง</strong> — คำนวณจากข้อมูลจำลอง ยังไม่ใช่ผลวัดจากเรดาร์สทิงพระจริง</Notice
+		><strong>ตัวเลขจำลอง</strong> — วัด baseline บนข้อมูลจำลองเพื่อทดสอบหน้าจอ ยังไม่ใช่ผลวัดจากเรดาร์สทิงพระจริง
+		ผลของ U-Net จะขึ้นเมื่อเทรนด้วยข้อมูลจริงแล้ว</Notice
 	>
 {/if}
 
@@ -52,6 +54,18 @@
 	</div>
 
 	<section class="grid gap-4 md:grid-cols-3">
+		{#if !hasUnet}
+			<div
+				class="flex flex-col gap-2 rounded-2xl border-2 border-dashed border-primary bg-card p-5"
+			>
+				<strong class="text-base">U-Net (โมเดลของเรา)</strong>
+				<p class="text-sm leading-relaxed text-muted-foreground">{DESC.unet}</p>
+				<p class="mt-1 text-[13px] text-[#33424b]">
+					CSI ที่ 60 นาที <strong class="block text-2xl text-muted-foreground">รอผล</strong>
+				</p>
+				<p class="text-xs text-muted-foreground">วัดได้หลังเทรนด้วยข้อมูลเรดาร์สทิงพระจริง</p>
+			</div>
+		{/if}
 		{#each at60 as m (m.id)}
 			<div
 				class={[

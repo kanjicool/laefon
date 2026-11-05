@@ -8,16 +8,23 @@
 
 	const STYLE = 'https://tiles.openfreemap.org/styles/positron';
 	// ถ้าโหลด basemap ไม่ได้ (เน็ตช้า/ถูกบล็อก) ยังแสดงขอบเขตตำบลกับฝนได้บนพื้นสีทะเล
+	const WATER = '#c6dceb';
 	const FALLBACK_STYLE = {
 		version: 8 as const,
 		sources: {},
-		layers: [{ id: 'bg', type: 'background' as const, paint: { 'background-color': '#d7e6ee' } }]
+		layers: [{ id: 'bg', type: 'background' as const, paint: { 'background-color': WATER } }]
 	};
 
 	async function loadStyle() {
 		try {
 			const res = await fetch(STYLE, { signal: AbortSignal.timeout(6000) });
-			return res.ok ? await res.json() : FALLBACK_STYLE;
+			if (!res.ok) return FALLBACK_STYLE;
+			const style = await res.json();
+			// ทะเล/ทะเลสาบเป็นสีฟ้าตาม design system (positron เดิมเป็นสีเทา) — แก้ใน JSON ก่อนสร้างแผนที่
+			for (const l of style.layers ?? [])
+				if (l.type === 'fill' && String(l.id).includes('water'))
+					l.paint = { ...l.paint, 'fill-color': WATER };
+			return style;
 		} catch {
 			return FALLBACK_STYLE;
 		}
@@ -86,12 +93,7 @@
 				m.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 			m.on('load', () => {
 				if (disposed || !instance) return;
-				const layers = instance.getStyle().layers;
-				const firstSymbol = layers.find((l) => l.type === 'symbol')?.id;
-				// ทะเล/ทะเลสาบเป็นสีฟ้าตาม design system (positron เดิมเป็นสีเทา)
-				for (const l of layers)
-					if (l.type === 'fill' && l.id.includes('water'))
-						instance.setPaintProperty(l.id, 'fill-color', '#cfe0ea');
+				const firstSymbol = instance.getStyle().layers.find((l) => l.type === 'symbol')?.id;
 				instance.addSource('areas', {
 					type: 'geojson',
 					data: { type: 'FeatureCollection', features: [] },

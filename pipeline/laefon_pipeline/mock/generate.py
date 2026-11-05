@@ -49,7 +49,7 @@ RADAR_COLORS = [  # (mm/h ขั้นต่ำ, RGBA) ตาม laefon-design-s
     (20.0, (142, 59, 168, 235)),
 ]
 
-MODEL = {"id": "mock-unet", "name_th": "ข้อมูลจำลอง (ยังไม่ใช่โมเดลจริง)", "version": "0.1.0"}
+MODEL = {"id": "mock", "name_th": "ข้อมูลจำลอง (ยังไม่ใช่โมเดลจริง)", "version": "0.1.0"}
 
 
 def to_png(rate: np.ndarray, path: Path) -> None:
@@ -174,8 +174,9 @@ def contingency(truth: np.ndarray, pred: np.ndarray, thr: float) -> np.ndarray:
 
 
 def metrics(events: list[Event]) -> dict:
+    """วัดเฉพาะ baseline บนข้อมูลจำลอง — ไม่ใส่ U-Net เพราะตัวทำนายจำลองถูกออกแบบให้แม่นอยู่แล้ว
+    ตัวเลขของโมเดลจริงต้องมาจากการวัดบนข้อมูลเรดาร์จริงเท่านั้น"""
     methods = {
-        "unet": ("U-Net (จำลอง)", lambda ev, t, L: ev.unet(t, L)),
         "optical_flow": ("Optical flow", lambda ev, t, L: ev.optical_flow(t, L)),
         "persistence": ("Persistence", lambda ev, t, L: ev.truth(t)),
     }

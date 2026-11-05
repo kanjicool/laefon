@@ -215,51 +215,54 @@
 		<div class="mt-auto pt-2"><SiteFooter /></div>
 	</aside>
 
-	<main class="relative h-[58vh] min-h-[420px] flex-1 bg-[#d7e6ee] lg:h-auto">
-		<RainMap
-			{geo}
-			{levels}
-			{selected}
-			{layer}
-			radarSrc={frame ? fileUrl(frame.src) : null}
-			radarCoords={radar.coordinates}
-			preload={radar.frames.map((f) => fileUrl(f.src))}
-			onselect={select}
-		/>
-		<div
-			class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 lg:inset-x-4 lg:top-4"
-		>
-			<div class="pointer-events-auto hidden sm:block">
-				<RainLegend
-					{layer}
-					time={layer === 'radar'
-						? frame
-							? hhmm(frame.time)
-							: ''
-						: (choroPositions[choroIdx]?.label ?? '')}
-				/>
-			</div>
+	<!-- มือถือ: แถบเวลาอยู่ใต้แผนที่ (ไม่ทับเครดิตแผนที่) · desktop: ลอยบนแผนที่ -->
+	<main class="flex flex-1 flex-col bg-card lg:relative lg:block lg:bg-[#d7e6ee]">
+		<div class="relative h-[52vh] min-h-[380px] bg-[#d7e6ee] lg:absolute lg:inset-0 lg:h-auto">
+			<RainMap
+				{geo}
+				{levels}
+				{selected}
+				{layer}
+				radarSrc={frame ? fileUrl(frame.src) : null}
+				radarCoords={radar.coordinates}
+				preload={radar.frames.map((f) => fileUrl(f.src))}
+				onselect={select}
+			/>
 			<div
-				role="group"
-				aria-label="ชั้นข้อมูลแผนที่"
-				class="pointer-events-auto ml-auto flex gap-1 rounded-xl bg-card p-1 shadow-[0_2px_8px_rgba(20,33,43,.14)]"
+				class="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2 lg:inset-x-4 lg:top-4"
 			>
-				{#each [{ id: 'choropleth', label: 'โอกาสฝนรายตำบล' }, { id: 'radar', label: 'ภาพเรดาร์' }] as const as opt (opt.id)}
-					<button
-						type="button"
-						aria-pressed={layer === opt.id}
-						onclick={() => (layer = opt.id)}
-						class={[
-							'rounded-lg px-3 py-2 text-sm',
-							layer === opt.id
-								? 'bg-primary font-semibold text-primary-foreground'
-								: 'text-foreground'
-						]}>{opt.label}</button
-					>
-				{/each}
+				<div class="pointer-events-auto hidden sm:block">
+					<RainLegend
+						{layer}
+						time={layer === 'radar'
+							? frame
+								? hhmm(frame.time)
+								: ''
+							: (choroPositions[choroIdx]?.label ?? '')}
+					/>
+				</div>
+				<div
+					role="group"
+					aria-label="ชั้นข้อมูลแผนที่"
+					class="pointer-events-auto ml-auto flex gap-1 rounded-xl bg-card p-1 shadow-[0_2px_8px_rgba(20,33,43,.14)]"
+				>
+					{#each [{ id: 'choropleth', label: 'โอกาสฝนรายตำบล' }, { id: 'radar', label: 'ภาพเรดาร์' }] as const as opt (opt.id)}
+						<button
+							type="button"
+							aria-pressed={layer === opt.id}
+							onclick={() => (layer = opt.id)}
+							class={[
+								'rounded-lg px-3 py-2 text-sm',
+								layer === opt.id
+									? 'bg-primary font-semibold text-primary-foreground'
+									: 'text-foreground'
+							]}>{opt.label}</button
+						>
+					{/each}
+				</div>
 			</div>
 		</div>
-		<div class="absolute inset-x-3 bottom-3 lg:inset-x-4 lg:right-16 lg:bottom-4">
+		<div class="border-b p-3 lg:absolute lg:inset-x-4 lg:right-16 lg:bottom-4 lg:border-0 lg:p-0">
 			{#if layer === 'radar'}
 				<TimeScrubber positions={radarPositions} bind:index={radarIdx} />
 			{:else}
