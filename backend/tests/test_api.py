@@ -79,7 +79,7 @@ def test_missing_file_is_404(client):
 
 def test_live_shift_moves_issued_to_current_step():
     issued = datetime.fromisoformat(ISSUED)
-    now = datetime(2026, 12, 1, 9, 52, tzinfo=UTC)  # 16:52 เวลาไทย → รอบ 16:45
+    now = datetime(2026, 12, 1, 9, 52, tzinfo=UTC)  # 16:52 Bangkok -> 16:45 step
     shifted = issued + live_shift(issued, 15, now)
     assert shifted.astimezone(UTC) == datetime(2026, 12, 1, 9, 45, tzinfo=UTC)
     assert live_shift(shifted, 15, now) == timedelta(0)

@@ -7,7 +7,7 @@
 	import type { RadarFile } from '$lib/features/forecast/domain/types';
 
 	const STYLE = 'https://tiles.openfreemap.org/styles/positron';
-	// ถ้าโหลด basemap ไม่ได้ (เน็ตช้า/ถูกบล็อก) ยังแสดงขอบเขตตำบลกับฝนได้บนพื้นสีทะเล
+	// Used when the basemap fails to load, so tambons and rain still render.
 	const WATER = '#c6dceb';
 	const FALLBACK_STYLE = {
 		version: 8 as const,
@@ -20,7 +20,7 @@
 			const res = await fetch(STYLE, { signal: AbortSignal.timeout(6000) });
 			if (!res.ok) return FALLBACK_STYLE;
 			const style = await res.json();
-			// ทะเล/ทะเลสาบเป็นสีฟ้าตาม design system (positron เดิมเป็นสีเทา) — แก้ใน JSON ก่อนสร้างแผนที่
+			// Recolor water before map creation; setPaintProperty after load did not apply.
 			for (const l of style.layers ?? [])
 				if (l.type === 'fill' && String(l.id).includes('water'))
 					l.paint = { ...l.paint, 'fill-color': WATER };
@@ -46,7 +46,7 @@
 		onselect
 	}: {
 		geo: AreaCollection | null;
-		/** ขั้นฝนรายตำบล ณ เวลาที่เลือก */
+		/** Rain level per tambon at the selected time. */
 		levels: Record<string, RainLevel>;
 		selected?: string | null;
 		layer?: 'choropleth' | 'radar';
@@ -71,11 +71,11 @@
 		let disposed = false;
 		let instance: MlMap | null = null;
 		const clickHandler = untrack(() => onselect);
-		// import แบบ dynamic เพราะ maplibre ต้องใช้ window — ฝั่ง SSR โหลดไม่ได้
+		// Dynamic import: maplibre needs window, so it cannot load during SSR.
 		Promise.all([
 			import('maplibre-gl'),
 			loadStyle(),
-			// v6 แยก worker เป็นไฟล์ ESM ให้ Vite bundle แล้วบอก URL ให้ maplibre
+			// v6 ships the worker as a separate ESM file; let Vite bundle it.
 			import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')
 		]).then(([maplibregl, style, worker]) => {
 			if (disposed) return;
@@ -157,13 +157,13 @@
 		};
 	}
 
-	// ใส่ขอบเขตตำบลเมื่อโหลด GeoJSON เสร็จ
+	// Load tambon boundaries.
 	$effect(() => {
 		if (!ready || !map || !geo) return;
 		(map.getSource('areas') as GeoJSONSource).setData(geo as never);
 	});
 
-	// ระบายสีตามขั้นฝนของเวลาที่เลือก
+	// Color by rain level.
 	$effect(() => {
 		if (!ready || !map || !geo) return;
 		for (const [code, level] of Object.entries(levels)) {
@@ -171,7 +171,7 @@
 		}
 	});
 
-	// ตำบลที่เลือก + ซูมไปหา
+	// Highlight and zoom to the selected tambon.
 	$effect(() => {
 		if (!ready || !map) return;
 		const filter = ['==', ['get', 'area_code'], selected ?? ''] as never;
@@ -183,7 +183,7 @@
 		if (feature) map.fitBounds(bbox(feature), { padding: 80, maxZoom: 10.5, duration: 600 });
 	});
 
-	// ภาพเรดาร์
+	// Radar image.
 	$effect(() => {
 		if (!ready || !map || !radarSrc || !radarCoords) return;
 		const src = map.getSource('radar') as ImageSource | undefined;
@@ -202,7 +202,7 @@
 		}
 	});
 
-	// สลับชั้นข้อมูล
+	// Layer toggle.
 	$effect(() => {
 		if (!ready || !map) return;
 		const radarOn = layer === 'radar';
@@ -212,13 +212,13 @@
 		if (map.getLayer('radar')) map.setPaintProperty('radar', 'raster-opacity', radarOn ? 0.9 : 0);
 	});
 
-	// โหลดภาพเรดาร์ทุก frame ไว้ก่อน ตอนเล่นจะได้ไม่กระพริบ
+	// Preload frames to avoid flicker during playback.
 	$effect(() => {
 		for (const url of preload) new Image().src = url;
 	});
 </script>
 
-<!-- maplibre ตั้ง position: relative ให้ container เอง จึงต้องมีกล่องนอกที่เป็น absolute -->
+<!-- maplibre forces position: relative on its container, so wrap it. -->
 <div class="absolute inset-0" role="region" aria-label="แผนที่โอกาสฝนรายตำบล จังหวัดสงขลา">
 	<div {@attach mount} class="h-full w-full"></div>
 </div>

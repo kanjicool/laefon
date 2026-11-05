@@ -1,7 +1,6 @@
-"""สัญญาข้อมูลระหว่าง pipeline → API → เว็บ
+"""Data contract: pipeline -> API -> web.
 
-ต้องตรงกับ `web/src/lib/features/forecast/domain/types.ts` ถ้าเปลี่ยน shape
-ให้เพิ่ม schema_version แล้วแก้ทั้งสามฝั่งพร้อมกัน
+Keep in sync with web/src/lib/features/forecast/domain/types.ts; bump schema_version on change.
 """
 
 from datetime import datetime
@@ -12,8 +11,8 @@ from pydantic import BaseModel, Field
 
 class ForecastStep(BaseModel):
     lead_min: int = Field(gt=0)
-    p_rain: float = Field(ge=0, le=1, description="โอกาสฝน ≥ 1 mm/h")
-    p_heavy: float = Field(ge=0, le=1, description="โอกาสฝน ≥ 5 mm/h")
+    p_rain: float = Field(ge=0, le=1, description="P(rain >= 1 mm/h)")
+    p_heavy: float = Field(ge=0, le=1, description="P(rain >= 5 mm/h)")
 
 
 class AreaForecast(BaseModel):
@@ -41,13 +40,13 @@ class ForecastFile(BaseModel):
 class RadarFrame(BaseModel):
     time: datetime
     kind: Literal["observed", "forecast"]
-    src: str = Field(description="path ใต้ /v1/files")
+    src: str = Field(description="Path under /v1/files")
 
 
 class RadarFile(BaseModel):
     schema_version: Literal[1]
     is_mock: bool
-    # มุมภาพ [บนซ้าย, บนขวา, ล่างขวา, ล่างซ้าย] เป็น [lon, lat] ตามที่ MapLibre image source ใช้
+    # Image corners [TL, TR, BR, BL] as [lon, lat] (MapLibre image source order).
     coordinates: list[tuple[float, float]] = Field(min_length=4, max_length=4)
     frames: list[RadarFrame]
 
@@ -56,7 +55,7 @@ class ReplayEvent(BaseModel):
     id: str
     title_th: str
     description_th: str
-    runs: list[str] = Field(description="รหัสรอบทำนาย เช่น 1430")
+    runs: list[str] = Field(description="Run ids, e.g. 1430")
     default_run: str
 
 

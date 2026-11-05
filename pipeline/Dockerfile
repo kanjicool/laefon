@@ -1,4 +1,4 @@
-# pipeline (ตอนนี้: สร้างข้อมูลจำลอง) — Python 3.12 เพราะ library ML/เรดาร์ยังไม่รองรับ 3.14 ครบ
+# Python 3.12: radar/ML libraries do not fully support 3.14 yet.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

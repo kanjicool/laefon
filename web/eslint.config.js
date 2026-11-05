@@ -11,7 +11,7 @@ const gitignorePath = fileURLToPath(new URL('./.gitignore', import.meta.url));
 
 export default ts.config(
 	includeIgnoreFile(gitignorePath),
-	// shadcn-svelte components ที่ generate มา ไม่ได้เขียนเอง
+	// generated shadcn-svelte components
 	{ ignores: ['src/lib/components/ui/**', 'static/**'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
@@ -25,7 +25,7 @@ export default ts.config(
 		rules: {
 			// https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
 			'no-undef': 'off',
-			// เหมือน tent: เว็บไม่ได้ deploy ใต้ base path จึงไม่บังคับ resolve() ทุกลิงก์
+			// Same as tent: no base path, so resolve() is not required.
 			'svelte/no-navigation-without-resolve': 'off'
 		}
 	},

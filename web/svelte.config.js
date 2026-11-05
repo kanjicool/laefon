@@ -5,7 +5,7 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
-		// Node server (เหมือน tent): หน้าเว็บ SSR + BFF `/api/*` ที่ส่งต่อไป FastAPI
+		// Node server as in tent: SSR pages plus the /api BFF.
 		adapter: adapter()
 	}
 };

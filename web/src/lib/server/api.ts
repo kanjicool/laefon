@@ -2,9 +2,8 @@ import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 
 /**
- * URL ของ FastAPI — ไม่ส่งไปถึง browser
- * docker: http://api:9000 (ตั้งใน docker-compose.yml) · รันบนเครื่อง: 9001 ให้ตรงกับ docker-compose.dev.yml
- * และไม่ชนกับ tent-fastapi ที่ใช้ 9000
+ * FastAPI base URL (server only). Docker sets http://api:9000; local default 9001
+ * matches docker-compose.dev.yml and avoids tent-fastapi on 9000.
  */
 export function apiBase(): string {
 	return (env.API_URL ?? 'http://localhost:9001').replace(/\/$/, '');

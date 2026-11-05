@@ -2,8 +2,7 @@ import { apiBase } from '$lib/server/api';
 import type { RequestHandler } from './$types';
 
 /**
- * BFF แบบเดียวกับ tent: browser เรียก /api/v1/* แล้ว SvelteKit ส่งต่อไป FastAPI
- * browser จึงไม่ต้องรู้ที่อยู่ API ภายใน อ่านอย่างเดียว (GET)
+ * Read-only BFF (as in tent): proxies /api/v1/* to FastAPI so the browser never sees its address.
  */
 export const GET: RequestHandler = async ({ params, url, fetch }) => {
 	const upstream = await fetch(`${apiBase()}/v1/${params.path}${url.search}`);
@@ -12,7 +11,7 @@ export const GET: RequestHandler = async ({ params, url, fetch }) => {
 		const value = upstream.headers.get(key);
 		if (value) headers.set(key, value);
 	}
-	// ภาพเรดาร์ของรอบที่ผ่านมาแล้วไม่เปลี่ยน ส่วน JSON ล่าสุดเปลี่ยนทุก 15 นาที
+	// Past radar images never change; latest JSON changes every 15 min.
 	headers.set(
 		'cache-control',
 		params.path.startsWith('files/') ? 'public, max-age=86400' : 'public, max-age=60'

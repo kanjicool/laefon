@@ -1,4 +1,4 @@
-/** หาตำบลจากพิกัด GPS (ray casting) — ใช้กับ GeoJSON ขอบเขตตำบล ไม่ต้องพึ่ง library */
+/** Point-in-polygon lookup of a tambon from GPS coordinates (ray casting). */
 
 type Ring = number[][];
 type Geometry =

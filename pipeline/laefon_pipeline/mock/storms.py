@@ -1,7 +1,4 @@
-"""สนามฝนจำลอง: กลุ่มฝนรูปวงรีที่เคลื่อนที่ ก่อตัว และสลายตามเวลา
-
-ไม่ได้จำลองฟิสิกส์จริง แค่ให้หน้าเว็บมีข้อมูลที่ "ดูเหมือน" ฝนในสงขลาช่วงมรสุมตะวันออกเฉียงเหนือ
-"""
+"""Mock rain field: moving elliptical cells that grow and decay. Not physical, just plausible."""
 
 import math
 from dataclasses import dataclass, field
@@ -13,16 +10,16 @@ COSLAT = math.cos(math.radians(7.1))
 
 @dataclass(frozen=True)
 class Cell:
-    lon: float  # ตำแหน่ง ณ t = 0 (นาที)
+    lon: float  # position at t = 0
     lat: float
-    u: float  # ความเร็วแนวตะวันออก (องศา/ชม.) ลบ = ไปทางตะวันตก
-    v: float  # ความเร็วแนวเหนือ (องศา/ชม.)
-    peak: float  # mm/h ที่จุดสูงสุดของชีวิต
-    sx: float  # รัศมีตามแกนยาว (องศา)
-    sy: float  # รัศมีตามแกนสั้น (องศา)
-    angle: float  # องศาของแกนยาว
-    birth: float = -240.0  # นาทีที่เริ่มก่อตัว
-    life: float = 600.0  # อายุ (นาที)
+    u: float  # eastward speed, deg/h
+    v: float  # northward speed, deg/h
+    peak: float  # peak mm/h
+    sx: float  # major-axis sigma, deg
+    sy: float  # minor-axis sigma, deg
+    angle: float  # major-axis angle
+    birth: float = -240.0  # minutes
+    life: float = 600.0  # minutes
 
     def position(self, t: float) -> tuple[float, float]:
         return self.lon + self.u * t / 60, self.lat + self.v * t / 60
@@ -39,17 +36,17 @@ class Scenario:
     id: str
     title_th: str
     description_th: str
-    start_iso: str  # เวลาเริ่มเหตุการณ์ (t = 0) พร้อม timezone
+    start_iso: str  # t = 0, with timezone
     cells: tuple[Cell, ...]
     texture_seed: int = 1
     extra: dict = field(default_factory=dict)
 
 
 def rain_rate(cells, lon: np.ndarray, lat: np.ndarray, t: float, *, frozen_at=None, jitter=None):
-    """อัตราฝน (mm/h) บน grid ณ นาที t
+    """Rain rate (mm/h) on the grid at minute t.
 
-    frozen_at: ถ้าระบุ ใช้ความแรงของกลุ่มฝน ณ เวลานั้น (แบบ optical flow ที่ไม่รู้ว่าฝนจะโตหรือสลาย)
-    jitter: list ของ (dlon, dlat, gain) ต่อกลุ่มฝน ใช้จำลองความคลาดของโมเดล
+    frozen_at: use cell intensity from this time (optical-flow style, no growth/decay).
+    jitter: per-cell (dlon, dlat, gain) to simulate model error.
     """
     out = np.zeros_like(lon, dtype=float)
     for i, c in enumerate(cells):
@@ -70,10 +67,10 @@ def rain_rate(cells, lon: np.ndarray, lat: np.ndarray, t: float, *, frozen_at=No
 
 
 def texture(shape: tuple[int, int], seed: int) -> np.ndarray:
-    """ลายเนื้อฝน (0.1–2.0) ให้ภาพเรดาร์ไม่เรียบเกินไป"""
+    """Multiplicative texture (0.1-2.0) so radar images are not too smooth."""
     rng = np.random.default_rng(seed)
     noise = rng.normal(size=shape)
-    for _ in range(6):  # box blur ซ้ำ ≈ gaussian
+    for _ in range(6):  # repeated box blur ~ gaussian
         noise = (
             noise
             + np.roll(noise, 1, 0)

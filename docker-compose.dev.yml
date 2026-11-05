@@ -1,6 +1,6 @@
-# dev: hot reload ทั้ง web และ api
+# Dev overrides: hot reload for web and api.
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-#   เว็บ http://localhost:5173 · API docs http://localhost:9001/docs
+#   web http://localhost:5173 · API docs http://localhost:9001/docs
 
 services:
   api:
@@ -9,7 +9,7 @@ services:
     command: ["fastapi", "dev", "apiapp/main.py", "--host", "0.0.0.0", "--port", "9000"]
     volumes:
       - ./backend/apiapp:/app/apiapp
-    # 9001 เพื่อไม่ชนกับ tent-fastapi ที่ใช้ 9000
+    # 9001 avoids tent-fastapi on 9000.
     ports:
       - "127.0.0.1:${API_PORT:-9001}:9000"
 

@@ -1,4 +1,4 @@
-# ข้อมูลเรดาร์ / สถานีจริง และโมเดลที่เทรนแล้ว — ห้ามขึ้น repo สาธารณะ
+# Real radar/station data and trained models must not be committed.
 /data/
 /pipeline/data/
 /models/

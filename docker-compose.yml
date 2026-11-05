@@ -1,11 +1,11 @@
-# แลฝน ทั้งระบบ: pipeline (สร้างข้อมูล) → api (FastAPI) → web (SvelteKit) → nginx
-#   cp .env.example .env && docker compose up -d --build     แล้วเปิด http://localhost:${NGINX_PORT}
-# รันใหม่เพื่อสร้างข้อมูลจำลองชุดใหม่:  docker compose run --rm pipeline
+# pipeline -> api -> web -> nginx
+#   cp .env.example .env && docker compose up -d --build
+# Regenerate mock data: docker compose run --rm pipeline
 
 name: laefon
 
 services:
-  # ตอนนี้: สร้างข้อมูลจำลองครั้งเดียวแล้วจบ · ต่อไป: รันทุก 15 นาทีเมื่อได้ข้อมูลเรดาร์จริง
+  # One-shot mock generator for now; will run every 15 min on real radar data.
   pipeline:
     build: ./pipeline
     image: laefon/pipeline:local
@@ -44,7 +44,7 @@ services:
     depends_on:
       web:
         condition: service_healthy
-    # แบบเดียวกับ tent: เปิดเฉพาะเครื่องตัวเอง port 80 · เครื่อง dev ที่ 80 ไม่ว่างให้ตั้ง NGINX_PORT ใน .env
+    # Same as tent: only nginx is published, localhost by default.
     ports:
       - "${NGINX_HOST:-127.0.0.1}:${NGINX_PORT:-80}:80"
     volumes:

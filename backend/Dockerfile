@@ -1,4 +1,4 @@
-# FastAPI (แบบเดียวกับ tent/backend/Dockerfile)
+# FastAPI, mirrors tent/backend/Dockerfile.
 FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

@@ -1,4 +1,4 @@
-# SvelteKit adapter-node (แบบเดียวกับ tent/frontend/Dockerfile.prod)
+# SvelteKit adapter-node, mirrors tent/frontend/Dockerfile.prod.
 FROM node:24-slim AS base
 WORKDIR /app
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
@@ -19,7 +19,7 @@ FROM node:24-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
 	PORT=3000 \
-	# อยู่หลัง nginx: ใช้ header จาก proxy สร้าง URL จริง (ลิงก์แชร์ LINE ต้องถูก)
+	# Behind nginx: build page.url from proxy headers (share links).
 	PROTOCOL_HEADER=x-forwarded-proto \
 	HOST_HEADER=x-forwarded-host
 

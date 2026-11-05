@@ -11,11 +11,10 @@ class Settings(BaseSettings):
     TITLE: str = "Laefon API"
     VERSION: str = "0.1.0"
 
-    # โฟลเดอร์ที่ pipeline เขียนผลทำนาย (forecast.json, radar.json, ภาพเรดาร์ ฯลฯ)
+    # Where the pipeline writes its output.
     DATA_DIR: Path = Path("../data/generated")
 
-    # ข้อมูลจำลอง: เลื่อนเวลาของรอบ "ล่าสุด" ให้ตรงกับเวลาจริง demo จะได้ไม่ขึ้นว่าข้อมูลเก่า
-    # มีผลเฉพาะไฟล์ที่ is_mock = true
+    # Shift mock "latest" timestamps to now so the demo never looks stale (is_mock only).
     MOCK_LIVE_CLOCK: bool = True
 
 

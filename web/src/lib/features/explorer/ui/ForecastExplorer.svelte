@@ -26,7 +26,7 @@
 		forecast: ForecastFile;
 		radar: RadarFile;
 		mode: 'latest' | 'replay';
-		/** เนื้อหาเพิ่มบนสุดของ panel (เช่น ตัวเลือกเหตุการณ์ในโหมด replay) */
+		/** Extra content at the top of the panel (replay controls). */
 		panelTop?: Snippet;
 	} = $props();
 
@@ -34,7 +34,7 @@
 
 	let geo = $state.raw<AreaCollection | null>(null);
 	let selected = $state<string | null>(page.url.searchParams.get('t'));
-	// ค่าเริ่มต้นอ่านครั้งเดียว — หน้า replay ใช้ {#key} สร้าง component ใหม่เมื่อเปลี่ยนรอบ
+	// Read once; the replay page remounts via {#key} when the run changes.
 	let layer = $state<'choropleth' | 'radar'>(
 		untrack(() => (mode === 'replay' ? 'radar' : 'choropleth'))
 	);
@@ -68,7 +68,7 @@
 	const choroPositions: ScrubPosition[] = $derived(
 		forecast.areas[0]?.steps.map((s) => ({
 			key: `c${s.lead_min}`,
-			// ป้ายเวลา = ต้นช่วงของ step (lead 15 คือ ตอนนี้ → +15)
+			// Label each step by its start time (lead 15 = now).
 			label: hhmm(addMinutes(forecast.issued_at, s.lead_min - forecast.step_minutes)),
 			sub:
 				s.lead_min === forecast.step_minutes
@@ -215,7 +215,7 @@
 		<div class="mt-auto pt-2"><SiteFooter /></div>
 	</aside>
 
-	<!-- มือถือ: แถบเวลาอยู่ใต้แผนที่ (ไม่ทับเครดิตแผนที่) · desktop: ลอยบนแผนที่ -->
+	<!-- Mobile: scrubber below the map (keeps attribution visible). Desktop: floats on the map. -->
 	<main class="flex flex-1 flex-col bg-card lg:relative lg:block lg:bg-[#d7e6ee]">
 		<div class="relative h-[52vh] min-h-[380px] bg-[#d7e6ee] lg:absolute lg:inset-0 lg:h-auto">
 			<RainMap

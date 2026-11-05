@@ -7,6 +7,6 @@ def floor_to_step(now: datetime, step_minutes: int) -> datetime:
 
 
 def live_shift(issued_at: datetime, step_minutes: int, now: datetime | None = None) -> timedelta:
-    """ระยะที่ต้องเลื่อนข้อมูลจำลองให้รอบล่าสุดตรงกับรอบเรดาร์ของเวลาจริง"""
+    """Offset that moves mock data so its latest run matches the current radar step."""
     now = now or datetime.now(UTC)
     return floor_to_step(now.astimezone(issued_at.tzinfo), step_minutes) - issued_at

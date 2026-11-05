@@ -1,6 +1,6 @@
 export type Searchable = { area_code: string; name_th: string; district_th: string };
 
-/** ตัดคำนำหน้า (ต./ตำบล/อ./อำเภอ) และช่องว่าง ให้พิมพ์ได้หลายแบบ */
+/** Strip Thai admin prefixes and spaces so queries match loosely. */
 export function normalizeThai(text: string): string {
 	return text
 		.trim()

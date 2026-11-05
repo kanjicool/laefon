@@ -16,7 +16,7 @@ def create_app() -> FastAPI:
     for router in (health_router, forecast_router, replay_router, areas_router, metrics_router):
         app.include_router(router)
 
-    # ภาพเรดาร์ (PNG) ที่ pipeline เขียนไว้ — check_dir=False เพื่อให้ API ขึ้นได้ก่อน pipeline เขียนเสร็จ
+    # check_dir=False: the API may start before the pipeline has written anything.
     app.mount(
         "/v1/files",
         StaticFiles(directory=settings.DATA_DIR, check_dir=False),

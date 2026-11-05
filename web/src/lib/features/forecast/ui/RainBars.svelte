@@ -10,7 +10,7 @@
 		highlight = -1
 	}: {
 		steps: ForecastStep[];
-		/** ใส่เมื่ออยากให้แสดงเวลาใต้แท่ง */
+		/** Set to show time labels under the bars. */
 		issuedAt?: string | null;
 		height?: number;
 		highlight?: number;

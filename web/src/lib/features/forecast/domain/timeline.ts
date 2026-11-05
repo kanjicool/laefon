@@ -22,8 +22,8 @@ function heavyWindow(steps: ForecastStep[], issuedAt: Date, stepMin: number): He
 }
 
 /**
- * สรุปผลทำนายของตำบลเป็นสิ่งที่คนอยากรู้: ตกอยู่ไหม จะเริ่มกี่โมง หยุดกี่โมง
- * step ที่ lead = 15 แทนช่วง issued_at → +15 นาที
+ * Summarize a tambon forecast: raining now, start time, end time.
+ * The step with lead 15 covers issued_at -> +15 min.
  */
 export function summarize(steps: ForecastStep[], issuedAt: Date, stepMin = 15): RainSummary {
 	if (steps.length === 0) return { kind: 'none' };
@@ -46,12 +46,12 @@ export function summarize(steps: ForecastStep[], issuedAt: Date, stepMin = 15): 
 	};
 }
 
-/** ต้นช่วงของ step (step ที่ 15:15 คือช่วง 15:00–15:15) */
+/** Start of a step's window (the 15:15 step covers 15:00-15:15). */
 function begin(end: Date, stepMin: number): Date {
 	return new Date(end.getTime() - stepMin * 60_000);
 }
 
-/** เวลาเริ่มตกสำหรับเรียงลำดับ — ตกอยู่ = 0, ไม่ตก = Infinity */
+/** Sort key: 0 = raining now, Infinity = no rain. */
 export function startRank(area: AreaForecast): number {
 	const i = area.steps.findIndex((s) => isRaining(s.p_rain));
 	return i < 0 ? Infinity : area.steps[i].lead_min - area.steps[0].lead_min;

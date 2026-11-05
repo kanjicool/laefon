@@ -1,15 +1,15 @@
-"""สร้างข้อมูลจำลองครบชุดให้ backend อ่าน (shape ตาม backend/apiapp/core/contract.py)
+"""Generate a full mock dataset for the backend (see backend/apiapp/core/contract.py).
 
 usage: uv run python -m laefon_pipeline.mock --out ../data/generated
 
-ผลลัพธ์:
+Output:
   areas.geojson
   latest/forecast.json, latest/radar.json
   replay/index.json
-  replay/<event>/frames/obs-HHMM.png          ภาพเรดาร์ "เกิดจริง" (จำลอง)
+  replay/<event>/frames/obs-HHMM.png          observed radar (mock)
   replay/<event>/<run>/forecast.json|radar.json
-  replay/<event>/<run>/fc-<lead>.png          ภาพที่โมเดลทำนาย
-  metrics.json                                CSI/POD/FAR ของ 3 วิธีบนข้อมูลจำลอง
+  replay/<event>/<run>/fc-<lead>.png          forecast radar
+  metrics.json                                baseline CSI/POD/FAR on mock data
 """
 
 import argparse
@@ -28,20 +28,20 @@ from .storms import SCENARIOS, Scenario, rain_rate, texture
 
 REFERENCE = Path(__file__).resolve().parents[2] / "reference" / "songkhla-tambon.geojson"
 
-# grid ครอบสงขลา + ทะเลรอบๆ ความละเอียด ~1 กม.
+# ~1 km grid over Songkhla and surrounding sea.
 LON0, LON1, LAT0, LAT1, RES = 99.95, 101.35, 6.35, 8.0, 0.01
 LONS = np.arange(LON0 + RES / 2, LON1, RES)
-LATS = np.arange(LAT1 - RES / 2, LAT0, -RES)  # แถวแรก = เหนือสุด ตรงกับภาพ
+LATS = np.arange(LAT1 - RES / 2, LAT0, -RES)  # row 0 = north, matches image rows
 GLON, GLAT = np.meshgrid(LONS, LATS)
 CORNERS = [[LON0, LAT1], [LON1, LAT1], [LON1, LAT0], [LON0, LAT0]]
 
 STEP = 15
 LEADS = list(range(15, 121, STEP))
-RUN_TIMES = list(range(60, 181, STEP))  # นาทีนับจากเริ่มเหตุการณ์
+RUN_TIMES = list(range(60, 181, STEP))  # minutes from event start
 DEFAULT_RUN_T = 120
 THRESHOLDS = (1.0, 5.0)
 
-RADAR_COLORS = [  # (mm/h ขั้นต่ำ, RGBA) ตาม laefon-design-system
+RADAR_COLORS = [  # (min mm/h, RGBA)
     (0.5, (169, 211, 239, 170)),
     (2.0, (95, 168, 224, 200)),
     (5.0, (47, 111, 176, 215)),
@@ -67,7 +67,7 @@ def load_areas() -> tuple[dict, list[dict]]:
         geom = shape(feat["geometry"])
         mask = contains_xy(geom, GLON, GLAT)
         idx = np.argwhere(mask)
-        if len(idx) == 0:  # ตำบลเล็กกว่า 1 ช่อง grid ใช้ช่องที่ใกล้จุดกลางที่สุด
+        if len(idx) == 0:  # tambon smaller than a cell: use nearest cell
             p = geom.representative_point()
             idx = np.array([[int((LAT1 - p.y) / RES), int((p.x - LON0) / RES)]])
         areas.append({**feat["properties"], "idx": (idx[:, 0], idx[:, 1])})
@@ -75,7 +75,7 @@ def load_areas() -> tuple[dict, list[dict]]:
 
 
 def prob(rate: np.ndarray, thr: float, lead: int) -> np.ndarray:
-    """แปลงอัตราฝนที่ทำนายเป็นความน่าจะเป็น ความไม่แน่นอนโตตาม lead time"""
+    """Rain rate -> probability; uncertainty grows with lead time."""
     s = 0.3 + 0.06 * lead / STEP
     return 1 / (1 + np.exp(-(np.log(rate + 0.05) - math.log(thr)) / s))
 
@@ -93,7 +93,7 @@ class Event:
         return rain_rate(self.sc.cells, GLON, GLAT, t) * self.tex
 
     def unet(self, t_run: float, lead: int) -> np.ndarray:
-        """ทำนายแบบ "รู้ว่าฝนจะโต/สลาย" แต่ตำแหน่งกับความแรงคลาดมากขึ้นตาม lead"""
+        """Knows growth/decay, but position and intensity errors grow with lead."""
         rng = np.random.default_rng([self.sc.texture_seed, int(t_run), lead])
         k = lead / STEP
         pos = 0.008 * k**0.8
@@ -101,11 +101,11 @@ class Event:
             (rng.normal(0, pos), rng.normal(0, pos), rng.lognormal(0, 0.1 * k))
             for _ in self.sc.cells
         ]
-        # ไม่ใส่ลายเนื้อฝน: โมเดลทำนายรายละเอียดเล็กไม่ได้ ภาพทำนายจึงเรียบกว่าของจริง
+        # No texture: forecasts are smoother than observations.
         return rain_rate(self.sc.cells, GLON, GLAT, t_run + lead, jitter=jitter)
 
     def optical_flow(self, t_run: float, lead: int) -> np.ndarray:
-        """เลื่อนฝนตามทิศที่เห็น แต่คงความแรงเท่าตอนทำนาย"""
+        """Advect with the observed motion, keep intensity frozen."""
         return rain_rate(self.sc.cells, GLON, GLAT, t_run + lead, frozen_at=t_run)
 
 
@@ -174,8 +174,7 @@ def contingency(truth: np.ndarray, pred: np.ndarray, thr: float) -> np.ndarray:
 
 
 def metrics(events: list[Event]) -> dict:
-    """วัดเฉพาะ baseline บนข้อมูลจำลอง — ไม่ใส่ U-Net เพราะตัวทำนายจำลองถูกออกแบบให้แม่นอยู่แล้ว
-    ตัวเลขของโมเดลจริงต้องมาจากการวัดบนข้อมูลเรดาร์จริงเท่านั้น"""
+    """Baselines only: the mock predictor is accurate by construction."""
     methods = {
         "optical_flow": ("Optical flow", lambda ev, t, L: ev.optical_flow(t, L)),
         "persistence": ("Persistence", lambda ev, t, L: ev.truth(t)),
@@ -209,7 +208,7 @@ def metrics(events: list[Event]) -> dict:
 
 
 def generate(out: Path) -> None:
-    # ล้างของเก่าทีละรายการ (out อาจเป็น docker volume mount ที่ลบตัวโฟลเดอร์ไม่ได้)
+    # Clear contents, not the dir itself: it may be a volume mount.
     out.mkdir(parents=True, exist_ok=True)
     for child in out.iterdir():
         shutil.rmtree(child) if child.is_dir() else child.unlink()

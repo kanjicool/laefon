@@ -1,5 +1,5 @@
 /**
- * แปลงความน่าจะเป็นเป็นคำและสี — เกณฑ์ทั้งหมดอยู่ที่นี่ที่เดียว (ดู laefon-design-system)
+ * Probability -> wording and color. All thresholds live here (see laefon-design-system).
  */
 export type RainLevel = 0 | 1 | 2 | 3 | 4;
 
@@ -21,7 +21,7 @@ export function rainLevel(pRain: number, pHeavy: number): RainLevel {
 	return 0;
 }
 
-/** ถือว่า "ฝนตก" เมื่อถึงขั้นน่าจะตก */
+/** Counts as rain from the "likely" level up. */
 export function isRaining(pRain: number): boolean {
 	return pRain >= RAIN_THRESHOLDS.likely;
 }

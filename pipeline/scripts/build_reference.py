@@ -2,11 +2,11 @@
 # requires-python = ">=3.12"
 # dependencies = ["geopandas>=1.2", "pyogrio>=0.11"]
 # ///
-"""สร้าง reference/songkhla-tambon.geojson จาก Thailand admin boundaries (OCHA COD-AB บน HDX)
+"""Build reference/songkhla-tambon.geojson from OCHA COD-AB (HDX).
 
-ดาวน์โหลด tha_admin_boundaries.gdb.zip จาก https://data.humdata.org/dataset/cod-ab-tha แล้วแตกไฟล์
+Download and unzip tha_admin_boundaries.gdb.zip from https://data.humdata.org/dataset/cod-ab-tha
 usage: uv run scripts/build_reference.py <path/to/tha_admin_boundaries.gdb> [out.geojson]
-license: CC BY-IGO — ต้องใส่เครดิต OCHA บนเว็บ
+license: CC BY-IGO, credit OCHA on the site
 """
 
 import sys

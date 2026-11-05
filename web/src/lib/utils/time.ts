@@ -13,7 +13,7 @@ export function hhmm(d: Date | string): string {
 	return timeFmt.format(typeof d === 'string' ? new Date(d) : d);
 }
 
-/** 14 ธ.ค. */
+/** e.g. "14 ธ.ค." */
 export function dayMonth(d: Date | string): string {
 	return dateFmt.format(typeof d === 'string' ? new Date(d) : d);
 }

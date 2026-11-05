@@ -1,7 +1,4 @@
-"""อ่านไฟล์ผลลัพธ์ที่ pipeline เขียนไว้ใน DATA_DIR
-
-ตอนนี้เก็บเป็นไฟล์ JSON ต่อไปถ้าย้ายไป MongoDB ให้เปลี่ยนแค่ module นี้ router ไม่ต้องแก้
-"""
+"""Reads pipeline output from DATA_DIR. Swap this module to move storage (e.g. MongoDB)."""
 
 import json
 import re
@@ -16,7 +13,7 @@ _SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 def safe_id(value: str) -> str:
-    """กัน path traversal: รหัสเหตุการณ์/รอบต้องเป็นตัวพิมพ์เล็ก ตัวเลข และ - เท่านั้น"""
+    """Reject ids that could escape DATA_DIR."""
     if not _SAFE_ID.match(value):
         raise HTTPException(status_code=404, detail="ไม่พบข้อมูล")
     return value

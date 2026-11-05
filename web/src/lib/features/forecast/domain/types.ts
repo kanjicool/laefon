@@ -1,12 +1,12 @@
 /**
- * สัญญาข้อมูลระหว่าง pipeline → backend → เว็บ
- * ต้องตรงกับ backend/apiapp/core/contract.py ถ้าเปลี่ยน shape ให้เพิ่ม schema_version แล้วแก้ทั้งสามฝั่ง
+ * Data contract: pipeline -> backend -> web.
+ * Keep in sync with backend/apiapp/core/contract.py; bump schema_version on change.
  */
 export type ForecastFile = {
 	schema_version: 2;
-	/** true = ข้อมูลจำลอง ห้ามแสดงเหมือนคำพยากรณ์จริง */
+	/** Mock data must never be presented as a real forecast. */
 	is_mock: boolean;
-	/** เวลาของภาพเรดาร์ล่าสุดที่ใช้ทำนาย (ISO 8601 พร้อม timezone) */
+	/** Time of the latest radar scan used (ISO 8601 with offset). */
 	issued_at: string;
 	step_minutes: number;
 	model: { id: string; name_th: string; version: string };
@@ -14,7 +14,7 @@ export type ForecastFile = {
 };
 
 export type AreaForecast = {
-	/** ตรงกับ area_code ใน GeoJSON ขอบเขตตำบล (ADM3 P-code เช่น TH900103) */
+	/** ADM3 P-code, matches area_code in the boundary GeoJSON. */
 	area_code: string;
 	name_th: string;
 	district_th: string;
@@ -23,23 +23,23 @@ export type AreaForecast = {
 
 export type ForecastStep = {
 	lead_min: number;
-	/** โอกาสฝน ≥ 1 mm/h (0–1) */
+	/** P(rain >= 1 mm/h) */
 	p_rain: number;
-	/** โอกาสฝนหนัก ≥ 5 mm/h (0–1) */
+	/** P(rain >= 5 mm/h) */
 	p_heavy: number;
 };
 
 export type RadarFrame = {
 	time: string;
 	kind: 'observed' | 'forecast';
-	/** path ใต้ /api/v1/files */
+	/** Path under /api/v1/files */
 	src: string;
 };
 
 export type RadarFile = {
 	schema_version: 1;
 	is_mock: boolean;
-	/** มุมภาพ [บนซ้าย, บนขวา, ล่างขวา, ล่างซ้าย] เป็น [lon, lat] */
+	/** Image corners [TL, TR, BR, BL] as [lon, lat]. */
 	coordinates: [[number, number], [number, number], [number, number], [number, number]];
 	frames: RadarFrame[];
 };
