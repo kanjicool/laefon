@@ -1,10 +1,11 @@
 <script lang="ts">
 	import 'maplibre-gl/dist/maplibre-gl.css';
-	import type { GeoJSONSource, ImageSource, Map as MlMap } from 'maplibre-gl';
+	import type { GeoJSONSource, ImageSource, Map as MlMap, Marker } from 'maplibre-gl';
 	import { untrack } from 'svelte';
 	import { bbox, type AreaCollection } from '$lib/features/area/domain/locate';
 	import { RAIN_LEVELS, type RainLevel } from '$lib/features/forecast/domain/wording';
-	import type { RadarFile } from '$lib/features/forecast/domain/types';
+	import type { RadarFile, RadarSite } from '$lib/features/forecast/domain/types';
+	import { ringLabelPoint, type CoverageMask, type LineCollection } from '../domain/motion';
 
 	const STYLE = 'https://tiles.openfreemap.org/styles/positron';
 	// Used when the basemap fails to load, so tambons and rain still render.
@@ -43,6 +44,10 @@
 		radarCoords = null,
 		preload = [],
 		interactive = true,
+		onion = null,
+		ghosts = [],
+		arrows = null,
+		range = null,
 		onselect
 	}: {
 		geo: AreaCollection | null;
@@ -54,10 +59,19 @@
 		radarCoords?: RadarFile['coordinates'] | null;
 		preload?: string[];
 		interactive?: boolean;
+		/** Rain outlines of nearby frames (see motion.ts onionOutlines). */
+		onion?: LineCollection | null;
+		/** Past radar image URLs, nearest first, drawn as faded grey ghosts. */
+		ghosts?: string[];
+		/** Trails and arrows (see motion.ts motionArrows). */
+		arrows?: LineCollection | null;
+		range?: { site: RadarSite; mask: CoverageMask; rings: LineCollection | null } | null;
 		onselect?: (code: string) => void;
 	} = $props();
 
+	const EMPTY = { type: 'FeatureCollection' as const, features: [] };
 	let map = $state.raw<MlMap | null>(null);
+	let maplib = $state.raw<typeof import('maplibre-gl') | null>(null);
 	let ready = $state(false);
 
 	const fillColor = [
@@ -121,6 +135,7 @@
 					},
 					firstSymbol
 				);
+				addOverlayLayers(instance);
 				instance.addLayer({
 					id: 'areas-selected-halo',
 					type: 'line',
@@ -145,6 +160,7 @@
 					() => (instance!.getCanvas().style.cursor = 'pointer')
 				);
 				instance.on('mouseleave', 'areas-fill', () => (instance!.getCanvas().style.cursor = ''));
+				maplib = maplibregl;
 				map = instance;
 				ready = true;
 			});
@@ -153,8 +169,101 @@
 			disposed = true;
 			ready = false;
 			map = null;
+			maplib = null;
 			instance?.remove();
 		};
+	}
+
+	const OVERLAY_BOTTOM = 'range';
+
+	/** Overlays sit above tambons and radar, below the selected outline. */
+	function addOverlayLayers(m: MlMap) {
+		for (const id of ['range', 'rings', 'onion', 'arrows'])
+			m.addSource(id, { type: 'geojson', data: EMPTY });
+		const round = { 'line-cap': 'round', 'line-join': 'round' } as const;
+		// Windy-style: grey out what the radar cannot see, thin solid edge.
+		m.addLayer({
+			id: 'range',
+			type: 'fill',
+			source: 'range',
+			paint: { 'fill-color': '#4a5a66', 'fill-opacity': 0.28 }
+		});
+		m.addLayer({
+			id: 'range-edge',
+			type: 'line',
+			source: 'range',
+			paint: { 'line-color': '#4a5a66', 'line-width': 1, 'line-opacity': 0.7 }
+		});
+		m.addLayer({
+			id: 'rings',
+			type: 'line',
+			source: 'rings',
+			paint: {
+				'line-color': '#4a5a66',
+				'line-width': 1,
+				'line-opacity': 0.6,
+				'line-dasharray': [3, 3]
+			}
+		});
+		// Farther frames fade more, like animation onion skin.
+		const fade = ['match', ['abs', ['get', 'offset']], 1, 0.85, 0.45] as never;
+		m.addLayer({
+			id: 'onion-past',
+			type: 'line',
+			source: 'onion',
+			filter: ['<', ['get', 'offset'], 0],
+			layout: round,
+			paint: { 'line-color': '#5a6b76', 'line-width': 1.8, 'line-opacity': fade }
+		});
+		m.addLayer({
+			id: 'onion-now',
+			type: 'line',
+			source: 'onion',
+			filter: ['==', ['get', 'offset'], 0],
+			layout: round,
+			paint: { 'line-color': '#14212b', 'line-width': 2.2 }
+		});
+		m.addLayer({
+			id: 'onion-future',
+			type: 'line',
+			source: 'onion',
+			filter: ['>', ['get', 'offset'], 0],
+			paint: {
+				'line-color': '#0f5f73',
+				'line-width': 1.8,
+				'line-opacity': fade,
+				'line-dasharray': [2, 1.5]
+			}
+		});
+		m.addLayer({
+			id: 'arrows-trail',
+			type: 'line',
+			source: 'arrows',
+			filter: ['==', ['get', 'kind'], 'trail'],
+			layout: round,
+			paint: {
+				'line-color': '#14212b',
+				'line-width': 1.6,
+				'line-opacity': 0.6,
+				'line-dasharray': [0.5, 2]
+			}
+		});
+		m.addLayer({
+			id: 'arrows-casing',
+			type: 'line',
+			source: 'arrows',
+			filter: ['!=', ['get', 'kind'], 'trail'],
+			layout: round,
+			paint: { 'line-color': '#ffffff', 'line-width': 7 }
+		});
+		m.addLayer({
+			id: 'arrows',
+			type: 'line',
+			source: 'arrows',
+			filter: ['!=', ['get', 'kind'], 'trail'],
+			layout: round,
+			paint: { 'line-color': '#14212b', 'line-width': 3 }
+		});
 	}
 
 	// Load tambon boundaries.
@@ -195,9 +304,9 @@
 					id: 'radar',
 					type: 'raster',
 					source: 'radar',
-					paint: { 'raster-opacity': 0, 'raster-resampling': 'nearest', 'raster-fade-duration': 0 }
+					paint: { 'raster-opacity': 0, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }
 				},
-				'areas-selected-halo'
+				OVERLAY_BOTTOM
 			);
 		}
 	});
@@ -212,6 +321,71 @@
 		if (map.getLayer('radar')) map.setPaintProperty('radar', 'raster-opacity', radarOn ? 0.9 : 0);
 	});
 
+	// Past frames as grey, faded radar images under the current one.
+	const GHOST_OPACITY = [0.45, 0.25];
+	$effect(() => {
+		if (!ready || !map || !radarCoords) return;
+		GHOST_OPACITY.forEach((opacity, i) => {
+			const id = `ghost-${i}`;
+			const url = ghosts[i];
+			const src = map!.getSource(id) as ImageSource | undefined;
+			if (url && src) src.updateImage({ url, coordinates: radarCoords });
+			else if (url) {
+				map!.addSource(id, { type: 'image', url, coordinates: radarCoords });
+				map!.addLayer(
+					{
+						id,
+						type: 'raster',
+						source: id,
+						paint: {
+							'raster-saturation': -1,
+							'raster-brightness-min': 0.35,
+							'raster-resampling': 'linear',
+							'raster-fade-duration': 0
+						}
+					},
+					map!.getLayer('radar') ? 'radar' : OVERLAY_BOTTOM
+				);
+			}
+			if (map!.getLayer(id)) map!.setPaintProperty(id, 'raster-opacity', url ? opacity : 0);
+		});
+	});
+
+	$effect(() => {
+		if (!ready || !map) return;
+		(map.getSource('onion') as GeoJSONSource).setData((onion ?? EMPTY) as never);
+		(map.getSource('arrows') as GeoJSONSource).setData((arrows ?? EMPTY) as never);
+	});
+
+	// Coverage mask + a small dot at the radar site.
+	$effect(() => {
+		if (!ready || !map || !maplib) return;
+		(map.getSource('range') as GeoJSONSource).setData((range?.mask ?? EMPTY) as never);
+		(map.getSource('rings') as GeoJSONSource).setData((range?.rings ?? EMPTY) as never);
+		if (!range) return;
+		const el = (cls: string, text = '') => {
+			const div = document.createElement('div');
+			div.className = cls;
+			div.textContent = text;
+			return div;
+		};
+		const dot = el('laefon-site');
+		dot.title = range.site.name_th;
+		const markers: Marker[] = [
+			new maplib.Marker({ element: dot }).setLngLat([range.site.lon, range.site.lat])
+		];
+		// HTML labels: the page font renders Thai, basemap glyphs may not.
+		if (range.rings)
+			for (const km of range.site.rings_km)
+				markers.push(
+					new maplib.Marker({ element: el('laefon-ring', `${km} กม.`) }).setLngLat(
+						ringLabelPoint(range.site, km)
+					)
+				);
+		for (const mk of markers) mk.addTo(map);
+		return () => markers.forEach((mk) => mk.remove());
+	});
+
 	// Preload frames to avoid flicker during playback.
 	$effect(() => {
 		for (const url of preload) new Image().src = url;
@@ -222,3 +396,21 @@
 <div class="absolute inset-0" role="region" aria-label="แผนที่โอกาสฝนรายตำบล จังหวัดสงขลา">
 	<div {@attach mount} class="h-full w-full"></div>
 </div>
+
+<style>
+	:global(.laefon-site) {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: #4a5a66;
+		border: 2px solid #fff;
+	}
+	:global(.laefon-ring) {
+		font-size: 11px;
+		color: #33424d;
+		background: rgb(255 255 255 / 0.85);
+		padding: 0 4px;
+		border-radius: 4px;
+		pointer-events: none;
+	}
+</style>

@@ -29,19 +29,34 @@ export type ForecastStep = {
 	p_heavy: number;
 };
 
+export type LonLat = [number, number];
+
 export type RadarFrame = {
 	time: string;
 	kind: 'observed' | 'forecast';
-	/** Path under /api/v1/files */
+	/** Path under /api/v1/files, with ?v=<content hash> for cache busting. */
 	src: string;
+	/** Rain area boundary (>= 1 mm/h) as lines. */
+	outline: LonLat[][];
 };
 
+export type RadarSite = { name_th: string; lon: number; lat: number; rings_km: number[] };
+
+/** Color from this dBZ up to the next band. */
+export type ScaleBand = { dbz: number; color: string };
+
+/** Rain cell centre per frame (same length as frames), null when absent. */
+export type Track = { id: string; path: (LonLat | null)[] };
+
 export type RadarFile = {
-	schema_version: 1;
+	schema_version: 2;
 	is_mock: boolean;
 	/** Image corners [TL, TR, BR, BL] as [lon, lat]. */
-	coordinates: [[number, number], [number, number], [number, number], [number, number]];
+	coordinates: [LonLat, LonLat, LonLat, LonLat];
+	site: RadarSite;
+	scale: ScaleBand[];
 	frames: RadarFrame[];
+	tracks: Track[];
 };
 
 export type ReplayEvent = {

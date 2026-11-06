@@ -12,6 +12,16 @@
 	import AnswerCard from '$lib/features/forecast/ui/AnswerCard.svelte';
 	import AreaList from '$lib/features/forecast/ui/AreaList.svelte';
 	import StepTable from '$lib/features/forecast/ui/StepTable.svelte';
+	import {
+		frameIndexAt,
+		motionArrows,
+		onionOutlines,
+		ghostFrames,
+		coverageMask,
+		rangeRings,
+		type Overlays
+	} from '$lib/features/map/domain/motion';
+	import OverlayToggles from '$lib/features/map/ui/OverlayToggles.svelte';
 	import RainLegend from '$lib/features/map/ui/RainLegend.svelte';
 	import RainMap from '$lib/features/map/ui/RainMap.svelte';
 	import TimeScrubber, { type ScrubPosition } from '$lib/features/map/ui/TimeScrubber.svelte';
@@ -43,6 +53,13 @@
 		untrack(() => radar.frames.filter((f) => f.kind === 'observed').length - 1)
 	);
 	let locateError = $state<string | null>(null);
+	let overlays = $state<Overlays>({
+		onion: false,
+		outlines: false,
+		arrows: false,
+		range: false,
+		rings: false
+	});
 
 	$effect(() => {
 		let cancelled = false;
@@ -95,6 +112,31 @@
 	});
 	const frame = $derived(radar.frames[radarIdx]);
 
+	// Overlays follow whichever scrubber is visible.
+	const motionIdx = $derived.by(() => {
+		if (layer === 'radar') return radarIdx;
+		const lead = forecast.areas[0]?.steps[choroIdx]?.lead_min ?? forecast.step_minutes;
+		return frameIndexAt(radar.frames, addMinutes(forecast.issued_at, lead - forecast.step_minutes));
+	});
+	const onion = $derived(
+		overlays.onion && overlays.outlines ? onionOutlines(radar.frames, motionIdx) : null
+	);
+	const ghosts = $derived(
+		overlays.onion ? ghostFrames(radar.frames, motionIdx).map((f) => fileUrl(f.src)) : []
+	);
+	const arrows = $derived(
+		overlays.arrows ? motionArrows(radar.tracks, radar.frames, motionIdx) : null
+	);
+	const range = $derived(
+		overlays.range
+			? {
+					site: radar.site,
+					mask: coverageMask(radar.site),
+					rings: overlays.rings ? rangeRings(radar.site) : null
+				}
+			: null
+	);
+
 	function select(code: string | null) {
 		selected = code;
 		locateError = null;
@@ -104,22 +146,35 @@
 		replaceState(url, {});
 	}
 
-	function locate() {
+	/** auto: opened by the page itself, so stay quiet when the user declines. */
+	function locate(auto = false) {
 		locateError = null;
 		if (!navigator.geolocation) {
-			locateError = 'เบราว์เซอร์นี้หาตำแหน่งไม่ได้ ค้นหาชื่อตำบลแทนได้';
+			if (!auto) locateError = 'เบราว์เซอร์นี้หาตำแหน่งไม่ได้ ค้นหาชื่อตำบลแทนได้';
 			return;
 		}
 		navigator.geolocation.getCurrentPosition(
 			(pos) => {
+				// Don't override a tambon the user picked while we were waiting.
+				if (auto && selected) return;
 				const hit = geo && findArea(geo, pos.coords.longitude, pos.coords.latitude);
 				if (hit) select(hit.properties.area_code);
 				else locateError = 'ตำแหน่งของคุณอยู่นอกจังหวัดสงขลา ตอนนี้ยังไม่ครอบคลุม';
 			},
-			() => (locateError = 'เบราว์เซอร์ไม่อนุญาตให้ใช้ตำแหน่ง ค้นหาชื่อตำบลแทนได้'),
-			{ timeout: 10_000 }
+			() => {
+				if (!auto) locateError = 'เบราว์เซอร์ไม่อนุญาตให้ใช้ตำแหน่ง ค้นหาชื่อตำบลแทนได้';
+			},
+			{ timeout: 10_000, maximumAge: 5 * 60_000 }
 		);
 	}
+
+	// Default to the user's own tambon on the latest page, once, if none is in the URL.
+	let autoLocated = false;
+	$effect(() => {
+		if (autoLocated || !geo || mode !== 'latest') return;
+		autoLocated = true;
+		if (!untrack(() => selected)) locate(true);
+	});
 
 	const shareUrl = $derived(
 		area
@@ -138,7 +193,7 @@
 			<AreaSearch
 				areas={forecast.areas}
 				onselect={select}
-				onlocate={mode === 'latest' ? locate : undefined}
+				onlocate={mode === 'latest' ? () => locate() : undefined}
 			/>
 			{#if locateError}<p class="text-sm text-warn-fg" role="alert">{locateError}</p>{/if}
 		</div>
@@ -226,6 +281,10 @@
 				radarSrc={frame ? fileUrl(frame.src) : null}
 				radarCoords={radar.coordinates}
 				preload={radar.frames.map((f) => fileUrl(f.src))}
+				{onion}
+				{ghosts}
+				{arrows}
+				{range}
 				onselect={select}
 			/>
 			<div
@@ -234,6 +293,8 @@
 				<div class="pointer-events-auto hidden sm:block">
 					<RainLegend
 						{layer}
+						scale={radar.scale}
+						{overlays}
 						time={layer === 'radar'
 							? frame
 								? hhmm(frame.time)
@@ -241,24 +302,27 @@
 							: (choroPositions[choroIdx]?.label ?? '')}
 					/>
 				</div>
-				<div
-					role="group"
-					aria-label="ชั้นข้อมูลแผนที่"
-					class="pointer-events-auto ml-auto flex gap-1 rounded-xl bg-card p-1 shadow-[0_2px_8px_rgba(20,33,43,.14)]"
-				>
-					{#each [{ id: 'choropleth', label: 'โอกาสฝนรายตำบล' }, { id: 'radar', label: 'ภาพเรดาร์' }] as const as opt (opt.id)}
-						<button
-							type="button"
-							aria-pressed={layer === opt.id}
-							onclick={() => (layer = opt.id)}
-							class={[
-								'rounded-lg px-3 py-2 text-sm',
-								layer === opt.id
-									? 'bg-primary font-semibold text-primary-foreground'
-									: 'text-foreground'
-							]}>{opt.label}</button
-						>
-					{/each}
+				<div class="pointer-events-auto ml-auto flex flex-col items-end gap-2">
+					<div
+						role="group"
+						aria-label="ชั้นข้อมูลแผนที่"
+						class="flex gap-1 rounded-xl bg-card p-1 shadow-[0_2px_8px_rgba(20,33,43,.14)]"
+					>
+						{#each [{ id: 'choropleth', label: 'โอกาสฝนรายตำบล' }, { id: 'radar', label: 'ภาพเรดาร์' }] as const as opt (opt.id)}
+							<button
+								type="button"
+								aria-pressed={layer === opt.id}
+								onclick={() => (layer = opt.id)}
+								class={[
+									'rounded-lg px-3 py-2 text-sm',
+									layer === opt.id
+										? 'bg-primary font-semibold text-primary-foreground'
+										: 'text-foreground'
+								]}>{opt.label}</button
+							>
+						{/each}
+					</div>
+					<OverlayToggles bind:overlays />
 				</div>
 			</div>
 		</div>
