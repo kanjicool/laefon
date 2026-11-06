@@ -6,7 +6,7 @@ Keep in sync with web/src/lib/features/forecast/domain/types.ts; bump schema_ver
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ForecastStep(BaseModel):
@@ -37,18 +37,48 @@ class ForecastFile(BaseModel):
     areas: list[AreaForecast]
 
 
+LonLat = tuple[float, float]
+
+
 class RadarFrame(BaseModel):
     time: datetime
     kind: Literal["observed", "forecast"]
-    src: str = Field(description="Path under /v1/files")
+    src: str = Field(description="Path under /v1/files, with ?v=<content hash>")
+    outline: list[list[LonLat]] = Field(description="Rain area boundary (>= 1 mm/h) lines")
+
+
+class RadarSite(BaseModel):
+    name_th: str
+    lon: float
+    lat: float
+    rings_km: list[int]
+
+
+class ScaleBand(BaseModel):
+    dbz: float = Field(description="Lower bound of this color")
+    color: str
+
+
+class Track(BaseModel):
+    id: str
+    path: list[LonLat | None] = Field(description="Cell centre per frame, null when absent")
 
 
 class RadarFile(BaseModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     is_mock: bool
     # Image corners [TL, TR, BR, BL] as [lon, lat] (MapLibre image source order).
-    coordinates: list[tuple[float, float]] = Field(min_length=4, max_length=4)
+    coordinates: list[LonLat] = Field(min_length=4, max_length=4)
+    site: RadarSite
+    scale: list[ScaleBand]
     frames: list[RadarFrame]
+    tracks: list[Track]
+
+    @model_validator(mode="after")
+    def _tracks_match_frames(self) -> RadarFile:
+        if any(len(t.path) != len(self.frames) for t in self.tracks):
+            raise ValueError("track path length must equal frame count")
+        return self
 
 
 class ReplayEvent(BaseModel):

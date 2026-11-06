@@ -27,7 +27,8 @@ def test_radar_frames_exist_on_disk(out):
     kinds = [fr["kind"] for fr in r["frames"]]
     assert kinds.count("observed") == 5 and kinds.count("forecast") == len(LEADS)
     for fr in r["frames"]:
-        assert (out / fr["src"]).is_file()
+        path, _, version = fr["src"].partition("?v=")
+        assert (out / path).is_file() and version
 
 
 def test_replay_runs_have_files(out):
@@ -43,3 +44,25 @@ def test_generation_is_deterministic(out, tmp_path):
     generate(tmp_path)
     a = (out / "latest" / "forecast.json").read_bytes()
     assert a == (tmp_path / "latest" / "forecast.json").read_bytes()
+
+
+def test_radar_motion_aligns_with_frames(out):
+    r = json.loads((out / "latest" / "radar.json").read_text(encoding="utf-8"))
+    assert r["schema_version"] == 2 and r["site"]["rings_km"]
+    assert r["tracks"], "the default event has moving cells"
+    for t in r["tracks"]:
+        assert len(t["path"]) == len(r["frames"])
+    assert all("outline" in fr for fr in r["frames"])
+    assert [b["dbz"] for b in r["scale"]] == sorted(b["dbz"] for b in r["scale"])
+
+
+def test_now_step_agrees_with_observed_radar(out):
+    """The 'now' step must not say dry where the radar shows rain at the same time."""
+    from laefon_pipeline.mock.generate import DEFAULT_RUN_T, SCENARIOS, Event, load_areas
+
+    f = json.loads((out / "latest" / "forecast.json").read_text(encoding="utf-8"))
+    p_now = {a["area_code"]: a["steps"][0]["p_rain"] for a in f["areas"]}
+    obs = Event(SCENARIOS[0]).truth(DEFAULT_RUN_T)
+    for a in load_areas()[1]:
+        wet = float((obs[a["idx"]] >= 1.0).mean())
+        assert p_now[a["area_code"]] >= wet * 0.9, a["name_th"]

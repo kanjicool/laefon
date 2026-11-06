@@ -13,6 +13,7 @@ Output:
 """
 
 import argparse
+import hashlib
 import json
 import math
 import shutil
@@ -20,10 +21,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
 from shapely import contains_xy
 from shapely.geometry import shape
 
+from ..render import TMD_SCALE, outline, render_png
 from .storms import SCENARIOS, Scenario, rain_rate, texture
 
 REFERENCE = Path(__file__).resolve().parents[2] / "reference" / "songkhla-tambon.geojson"
@@ -41,23 +42,11 @@ RUN_TIMES = list(range(60, 181, STEP))  # minutes from event start
 DEFAULT_RUN_T = 120
 THRESHOLDS = (1.0, 5.0)
 
-RADAR_COLORS = [  # (min mm/h, RGBA)
-    (0.5, (169, 211, 239, 170)),
-    (2.0, (95, 168, 224, 200)),
-    (5.0, (47, 111, 176, 215)),
-    (10.0, (75, 63, 163, 225)),
-    (20.0, (142, 59, 168, 235)),
-]
+# Approximate, read off the TMD stp240 image (range rings centre). Confirm with the centre.
+SITE = {"name_th": "เรดาร์สทิงพระ", "lon": 100.455, "lat": 7.428, "rings_km": [60, 120, 240]}
+TRACK_MIN_MMH = 2.0  # cells weaker than this get no motion arrow
 
 MODEL = {"id": "mock", "name_th": "ข้อมูลจำลอง (ยังไม่ใช่โมเดลจริง)", "version": "0.1.0"}
-
-
-def to_png(rate: np.ndarray, path: Path) -> None:
-    rgba = np.zeros((*rate.shape, 4), dtype=np.uint8)
-    for thr, color in RADAR_COLORS:
-        rgba[rate >= thr] = color
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(rgba, "RGBA").save(path, optimize=True)
 
 
 def load_areas() -> tuple[dict, list[dict]]:
@@ -85,12 +74,32 @@ class Event:
         self.sc = sc
         self.start = datetime.fromisoformat(sc.start_iso)
         self.tex = texture(GLON.shape, sc.texture_seed)
+        self._outlines: dict[float, list] = {}
 
     def at(self, t: float) -> datetime:
         return self.start + timedelta(minutes=t)
 
     def truth(self, t: float) -> np.ndarray:
         return rain_rate(self.sc.cells, GLON, GLAT, t) * self.tex
+
+    def obs_outline(self, t: float) -> list:
+        if t not in self._outlines:
+            self._outlines[t] = outline(self.truth(t), GLON, GLAT)
+        return self._outlines[t]
+
+    def tracks(self, times: list[float]) -> list[dict]:
+        """Cell centres per frame (null when the cell is weak or off the grid)."""
+        out = []
+        for i, c in enumerate(self.sc.cells):
+            path = []
+            for t in times:
+                x, y = c.position(t)
+                inside = LON0 <= x <= LON1 and LAT0 <= y <= LAT1
+                ok = inside and c.amplitude(t) >= TRACK_MIN_MMH
+                path.append([round(x, 3), round(y, 3)] if ok else None)
+            if sum(p is not None for p in path) >= 2:
+                out.append({"id": f"c{i}", "path": path})
+        return out
 
     def unet(self, t_run: float, lead: int) -> np.ndarray:
         """Knows growth/decay, but position and intensity errors grow with lead."""
@@ -109,6 +118,12 @@ class Event:
         return rain_rate(self.sc.cells, GLON, GLAT, t_run + lead, frozen_at=t_run)
 
 
+def versioned(out: Path, rel: str) -> str:
+    """Append a content hash so browsers refetch an image when it is regenerated."""
+    digest = hashlib.sha1((out / rel).read_bytes()).hexdigest()[:10]
+    return f"{rel}?v={digest}"
+
+
 def hhmm(dt: datetime) -> str:
     return dt.strftime("%H%M")
 
@@ -124,20 +139,34 @@ def build_run(ev: Event, t_run: int, areas: list[dict], out: Path) -> tuple[dict
     run_dir = out / "replay" / sc.id / run_id
     per_area = {a["area_code"]: [] for a in areas}
     frames = []
-    for t in range(t_run - 60, t_run + 1, STEP):
-        name = f"replay/{sc.id}/frames/obs-{hhmm(ev.at(t))}.png"
-        frames.append({"time": ev.at(t).isoformat(), "kind": "observed", "src": name})
+    obs_times = list(range(t_run - 60, t_run + 1, STEP))
+    for t in obs_times:
+        frames.append(
+            {
+                "time": ev.at(t).isoformat(),
+                "kind": "observed",
+                "src": versioned(out, f"replay/{sc.id}/frames/obs-{hhmm(ev.at(t))}.png"),
+                "outline": ev.obs_outline(t),
+            }
+        )
+    # Window start: observed now for the first step, then the previous forecast.
+    prev, prev_lead = ev.truth(t_run), 0
     for lead in LEADS:
         pred = ev.unet(t_run, lead)
-        to_png(pred, run_dir / f"fc-{lead}.png")
+        render_png(pred, run_dir / f"fc-{lead}.png")
         frames.append(
             {
                 "time": ev.at(t_run + lead).isoformat(),
                 "kind": "forecast",
-                "src": f"replay/{sc.id}/{run_id}/fc-{lead}.png",
+                "src": versioned(out, f"replay/{sc.id}/{run_id}/fc-{lead}.png"),
+                "outline": outline(pred, GLON, GLAT),
             }
         )
-        p1, p5 = prob(pred, 1.0, lead), prob(pred, 5.0, lead)
+        # A step covers [lead - 15, lead]: rain at either end counts, so the
+        # "now" step agrees with the radar image shown at the same time.
+        p1 = np.maximum(prob(prev, 1.0, prev_lead), prob(pred, 1.0, lead))
+        p5 = np.maximum(prob(prev, 5.0, prev_lead), prob(pred, 5.0, lead))
+        prev, prev_lead = pred, lead
         for a in areas:
             per_area[a["area_code"]].append(
                 {
@@ -162,7 +191,15 @@ def build_run(ev: Event, t_run: int, areas: list[dict], out: Path) -> tuple[dict
             for a in areas
         ],
     }
-    radar = {"schema_version": 1, "is_mock": True, "coordinates": CORNERS, "frames": frames}
+    radar = {
+        "schema_version": 2,
+        "is_mock": True,
+        "coordinates": CORNERS,
+        "site": SITE,
+        "scale": [{"dbz": d, "color": c} for d, c in TMD_SCALE],
+        "frames": frames,
+        "tracks": ev.tracks(obs_times + [t_run + lead for lead in LEADS]),
+    }
     write_json(run_dir / "forecast.json", forecast)
     write_json(run_dir / "radar.json", radar)
     return forecast, radar
@@ -219,7 +256,8 @@ def generate(out: Path) -> None:
     index = []
     for ev in events:
         for t in range(0, max(RUN_TIMES) + 1, STEP):
-            to_png(ev.truth(t), out / "replay" / ev.sc.id / "frames" / f"obs-{hhmm(ev.at(t))}.png")
+            frame = out / "replay" / ev.sc.id / "frames" / f"obs-{hhmm(ev.at(t))}.png"
+            render_png(ev.truth(t), frame)
         runs = []
         for t_run in RUN_TIMES:
             forecast, radar = build_run(ev, t_run, areas, out)

@@ -26,10 +26,20 @@ FORECAST = {
     ],
 }
 RADAR = {
-    "schema_version": 1,
+    "schema_version": 2,
     "is_mock": True,
     "coordinates": [[100, 8], [101, 8], [101, 6], [100, 6]],
-    "frames": [{"time": ISSUED, "kind": "observed", "src": "latest/frames/0.png"}],
+    "site": {"name_th": "เรดาร์", "lon": 100.4, "lat": 7.4, "rings_km": [60]},
+    "scale": [{"dbz": 14, "color": "#00bd00"}],
+    "frames": [
+        {
+            "time": ISSUED,
+            "kind": "observed",
+            "src": "latest/frames/0.png",
+            "outline": [[[100.5, 7.0], [100.6, 7.1]]],
+        }
+    ],
+    "tracks": [{"id": "c0", "path": [[100.5, 7.0]]}],
 }
 
 
